@@ -55,9 +55,9 @@ You can send UDP commands to the KeyzPal_Mimic system to control the LED strip. 
 -   **numOFF**: Turn off the Num Lock LED.
 -   **scrollON**: Turn on the Scroll Lock LED.
 -   **scrollOFF**: Turn off the Scroll Lock LED.
--   **caps<color>**: Set the color of the Caps Lock LED. Replace `<color>` with a supported color name (e.g., Red, Green, Blue).
--   **num<color>**: Set the color of the Num Lock LED. Replace `<color>` with a supported color name.
--   **scroll<color>**: Set the color of the Scroll Lock LED. Replace `<color>` with a supported color name.
+-   **caps`color`**: Set the color of the Caps Lock LED. Replace `color` with a supported color name (e.g., Red, Green, Blue).
+-   **num`color`**: Set the color of the Num Lock LED. Replace `color` with a supported color name.
+-   **scroll`color`**: Set the color of the Scroll Lock LED. Replace `color` with a supported color name.
 -   **Reboot**: Restart the ESP8266 module.
 -   **Eeprom**: Restore saved LED colors from EEPROM (for diagnostic purposes).
 
