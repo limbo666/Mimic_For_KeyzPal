@@ -9,10 +9,10 @@
 -   Supports customization of LED colors for each lock state.
 -   Saves and restores LED colors from EEPROM to retain settings after a power cycle.
 -   Works with any ESP8266 development board and compatible LED strip.
-- 
+  
 ## Software
 
--   This hardware is controlled by **KeyzPal** tray utility for windows.
+-   This hardware is controlled by **KeyzPal** tray utility for windows. Get it [here]([https://link-url-here.org](https://github.com/limbo666/KeyzPal/releases))
 
 ## Requirements
 
