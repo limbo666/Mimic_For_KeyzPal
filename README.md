@@ -1,6 +1,6 @@
 # Mimic for KeyzPal (KeyzPal_Mimic)
 
-**KeyzPal_Mimic** is an ESP8266-based project that allows you to control an LED strip using UDP commands sent over a network. It is designed to mimic the behavior of a keyboard's Caps Lock, Num Lock, and Scroll Lock LEDs, but with an LED strip.
+**KeyzPal_Mimic** is an ESP-based project that allows you to control an LED strip using UDP commands sent over a network. It is designed to mimic the behavior of a keyboard's Caps Lock, Num Lock, and Scroll Lock LEDs, but with an LED strip.
 
 ## Features
 
@@ -16,10 +16,10 @@
 
 ## Requirements
 
--   ESP8266 module (tested with ESP01)
+-   ESP8266 module (tested with ESP01 and Wemos D1 mini) or ESP32 (tested on generic ESP32 board - ESP32-WROOM-32)
 -   LED strip (NeoPixel or WS2812B)
 -   Arduino IDE (or compatible development environment)
--   ESP8266WiFi library
+-   ESP8266WiFi library or WiFi for ESP32
 -   WiFiUdp library
 -   Adafruit_NeoPixel library
 
@@ -27,20 +27,17 @@
 
 1.  Clone or download the KeyzPal_Mimic repository.
 2.  Open the Arduino IDE and navigate to **Sketch -> Include Library -> Manage Libraries**.
-3.  Search for and install the following libraries:
-    -   ESP8266WiFi
-    -   WiFiUdp
-    -   Adafruit_NeoPixel
-4.  Connect your ESP8266 module to your computer.
-5.  Open the **KeyzPal_Mimic.ino** file in the Arduino IDE.
+3.  Search for and install the required libraries:
+4.  Connect your ESP module to your computer.
+5.  Open the **KeyzPal_Mimic_Esp8266.ino** or **KeyzPal_Mimic_Esp32.ino** file in the Arduino IDE depending on your hardware.
 6.  Modify the code as needed (e.g., enter your network SSID and password).
-7.  Upload the code to your ESP8266 module.
-8.  Connect the LED strip to the appropriate GPIO pin on your ESP8266 module.
+7.  Upload the code to your ESP module.
+8.  Connect the LED strip to the appropriate GPIO pin on your ESP module.
 
 ## Usage
 
-1.  Power on the ESP8266 module.
-2.  Ensure that the ESP8266 is connected to your Wi-Fi network.
+1.  Power on the ESP module.
+2.  Ensure that the ESP is connected to your Wi-Fi network.
 3.  The LED strip will initially turn red while it connects to Wi-Fi and initializes.
 4.  Once connected, the LED strip will turn green briefly, then turn off.
 5.  The KeyzPal_Mimic system is now ready to receive commands.
