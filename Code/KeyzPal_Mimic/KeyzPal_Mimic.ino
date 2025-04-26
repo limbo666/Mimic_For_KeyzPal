@@ -1,105 +1,73 @@
-//KeyzPal_Mimic v1.0
-//This code cretaed by Nikos Georgousis
-//Test on ESP01 module, which is the bare minimum ESP8266 module.
-//Thsi code should be compatible with all ESP8266 dev boards. Some small changes may be needed 
+// KeyzPal_Mimic v1.1  - Optimized to be faster
+// Created by Nikos Georgousis
+// Tested on ESP01 module (ESP8266) and Wemos D1 mini
+// Compatible with most ESP8266 dev boards with minor changes
 
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 #include <EEPROM.h>
 #include <Adafruit_NeoPixel.h>
 
+const char* ssid = "WiFi_SSID";         // Replace with your network SSID
+const char* password = "WiFi_Password"; // Replace with your network password
+const int udpPort = 22689;         // UDP port to listen on
+const int ledPin = 2;              // GPIO2 connected to LED strip
+const int numLEDs = 3;             // Number of LEDs in the strip
+const int ledBrightness = 50;      // LED strip brightness (0-255)
+const int eepromAddress = 0;       // EEPROM address for color storage
+const int colorSize = 3;           // Size of each color component (RGB)
 
-const char* ssid = "SSID";         // Replace with your network SSID
-const char* password = "PASSword"; // Replace with your network password
-const int udpPort = 22689;         // UDP port to listen on //Change this port if you have more than one PC on your LAN running KeyzPal to avoid conflicts
-
-const int ledPin = 2;                  // GPIO2 connected to the LED strip
-const int numLEDs = 3;                 // Number of LEDs in the strip
-const int ledBrightness = 50;          // LED strip brightness (0-255)
-
-const int eepromAddress = 0;           // Starting EEPROM address to save colors
-const int colorSize = 3;               // Size of each color component (RGB)
-
-// Default colors
-byte numColor[colorSize] = {255, 255, 255};       // White
-byte capsColor[colorSize] = {255, 255, 255};      // White
-byte scrollColor[colorSize] = {255, 255, 255};    // White
+// Default colors (RGB)
+byte numColor[colorSize] = {255, 255, 255};    // White
+byte capsColor[colorSize] = {255, 255, 255};   // White
+byte scrollColor[colorSize] = {255, 255, 255}; // White
 
 WiFiUDP udp;
 Adafruit_NeoPixel strip(numLEDs, ledPin, NEO_GRB + NEO_KHZ800);
 
-// Track the state of each LED
-bool capsLEDOn = false;
-bool numLEDOn = false;
-bool scrollLEDOn = false;
+// Buffer for UDP packet reading
+const int maxPacketSize = 32;
+char packetBuffer[maxPacketSize];
 
 void setup() {
-  Serial.begin(115200); // Start the serial communication
-  // Initialize LED strip
+  Serial.begin(115200);
   strip.begin();
-  strip.show();  // Turn off all LEDs initially
   strip.setBrightness(ledBrightness);
-setAllLEDsToColor(50,0,0);
+  strip.clear();
+  strip.show(); // Initialize LEDs to off
+
+  // Quick startup LED feedback (red -> green -> off)
+  strip.fill(strip.Color(50, 0, 0));
+  strip.show();
+  delay(100); // Brief flash
+  strip.fill(strip.Color(0, 50, 0));
+  strip.show();
+  delay(100);
+  strip.clear();
+  strip.show();
+
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Connecting to WiFi...");
+    delay(100); // Minimal delay for Wi-Fi connection
   }
 
-setAllLEDsToColor(0,50,0);
-delay(500);
- setAllLEDsToColor(0,0,0); 
   // Initialize EEPROM
   EEPROM.begin(512);
-setAllLEDsToColor(0,50,50);
-delay(500);
-setAllLEDsToColor(0,0,0);
-delay(500);
-  // Restore saved colors from EEPROM
-  restoreColors();
+  restoreColors(); // Load saved colors
 
-// Convert byte array to int values
-int R = capsColor[0];
-int G = capsColor[1];
-int B = capsColor[2];
-// Call the function with the converted values
-setLEDColor(0,R, G, B);
-delay(500);
-// Convert byte array to int values
- R = numColor[0];
- G = numColor[1];
- B = numColor[2];
-// Call the function with the converted values
-setLEDColor(1,R, G, B);
-delay(500);
-// Convert byte array to int values
-R = scrollColor[0];
-G = scrollColor[1];
-B = scrollColor[2];
-// Call the function with the converted values
-setLEDColor(2,R, G, B);
-delay(2500);
-
-
- setAllLEDsToColor(0,0,0); 
   // Start UDP server
   udp.begin(udpPort);
 
-  // Display diagnostics on the terminal
-  Serial.print("UDP server is running at IP address: ");
+  // Brief diagnostic output
+  Serial.print("UDP server running at ");
   Serial.print(WiFi.localIP());
-  Serial.print(", port: ");
+  Serial.print(":");
   Serial.println(udpPort);
- setAllLEDsToColor(0,500,0); 
-delay(500);
-
-    turnOffAllLEDs();
-  Serial.println("System is up and running");
 }
 
 void loop() {
-  // Check for UDP packets
+  // Process UDP packets
   int packetSize = udp.parsePacket();
   if (packetSize) {
     handleUDPPacket(packetSize);
@@ -107,210 +75,115 @@ void loop() {
 }
 
 void handleUDPPacket(int packetSize) {
-  // Receive the UDP packet as a string
-  String command = udp.readString();
-  command.trim();  // Remove leading/trailing whitespaces
+  // Read packet into buffer
+  if (packetSize > maxPacketSize - 1) packetSize = maxPacketSize - 1;
+  int len = udp.read(packetBuffer, packetSize);
+  packetBuffer[len] = '\0'; // Null-terminate
 
-  // Print the received command on the terminal
-  Serial.print("Received command: ");
-  Serial.println(command);
-
-  // Process the received command
-  if (command == "capsON") {
-    Serial.println("Valid command: capsON");
-    setLedColor(1, capsColor);
-  } else if (command == "capsOFF") {
-    Serial.println("Valid command: capsOFF");
+  // Compare commands using strcmp for efficiency
+  if (strcmp(packetBuffer, "capsON") == 0) {
+    setLedColor(0, capsColor);
+  } else if (strcmp(packetBuffer, "capsOFF") == 0) {
+    turnOffLED(0);
+  } else if (strcmp(packetBuffer, "numON") == 0) {
+    setLedColor(1, numColor);
+  } else if (strcmp(packetBuffer, "numOFF") == 0) {
     turnOffLED(1);
-  } else if (command == "numON") {
-    Serial.println("Valid command: numON");
-    setLedColor(2, numColor);
-  } else if (command == "numOFF") {
-    Serial.println("Valid command: numOFF");
+  } else if (strcmp(packetBuffer, "scrollON") == 0) {
+    setLedColor(2, scrollColor);
+  } else if (strcmp(packetBuffer, "scrollOFF") == 0) {
     turnOffLED(2);
-  } else if (command == "scrollON") {
-    Serial.println("Valid command: scrollON");
-    setLedColor(3, scrollColor);
-  } else if (command == "scrollOFF") {
-    Serial.println("Valid command: scrollOFF");
-    turnOffLED(3);
-  } else if (command.startsWith("caps") && command.length() > 4) {
-    Serial.println("Valid command: " + command);
-    updateColor(command.substring(4), capsColor);
+  } else if (strncmp(packetBuffer, "caps", 4) == 0) {
+    updateColor(&packetBuffer[4], capsColor);
     saveColors();
-    if (isLedOn(1)) {
-      setLedColor(1, capsColor);
-    }
-  } else if (command.startsWith("num") && command.length() > 3) {
-    Serial.println("Valid command: " + command);
-    updateColor(command.substring(3), numColor);
+    setLedColor(0, capsColor);
+  } else if (strncmp(packetBuffer, "num", 3) == 0) {
+    updateColor(&packetBuffer[3], numColor);
     saveColors();
-    if (isLedOn(2)) {
-      setLedColor(2, numColor);
-    }
-  } else if (command.startsWith("scroll") && command.length() > 6) {
-    Serial.println("Valid command: " + command);
-    updateColor(command.substring(6), scrollColor);
+    setLedColor(1, numColor);
+  } else if (strncmp(packetBuffer, "scroll", 6) == 0) {
+    updateColor(&packetBuffer[6], scrollColor);
     saveColors();
-    if (isLedOn(3)) {
-      setLedColor(3, scrollColor);
-    }
-  } else if (command == "Reboot") {
-    Serial.println("Valid command: Reboot");
-    Serial.println("Reboot received");
-    delay(1000);
+    setLedColor(2, scrollColor);
+  } else if (strcmp(packetBuffer, "Reboot") == 0) {
     ESP.restart();
-
-  } else if (command == "Eeprom") {
-    Serial.println("Valid command: Eeprom");
-    Serial.println("Reboot received");
+  } else if (strcmp(packetBuffer, "Eeprom") == 0) {
     restoreColors();
-    delay(1000);
-  //  ESP.restart();
-  } else {
-    Serial.println("Unknown command: " + command);
   }
-}
-bool isLedOn(int ledIndex) {
-  // Check if the specified LED is currently ON
-  if (ledIndex >= 1 && ledIndex <= numLEDs) {
-    uint32_t color = strip.getPixelColor(ledIndex - 1);
-    return (color != 0);
-  }
-  return false;
 }
 
-void setLedColor(int ledIndex, byte* color) {
-  // Set the LED strip color for the specified LED index
-  if (ledIndex >= 1 && ledIndex <= numLEDs) {
-    strip.setPixelColor(ledIndex - 1, color[0], color[1], color[2]);
+void setLedColor(int ledIndex, const byte* color) {
+  if (ledIndex >= 0 && ledIndex < numLEDs) {
+    strip.setPixelColor(ledIndex, color[0], color[1], color[2]);
     strip.show();
   }
 }
-
 
 void turnOffLED(int ledIndex) {
-  // Turn off the specified LED in the strip
-  if (ledIndex >= 1 && ledIndex <= numLEDs) {
-    strip.setPixelColor(ledIndex - 1, 0);
+  if (ledIndex >= 0 && ledIndex < numLEDs) {
+    strip.setPixelColor(ledIndex, 0);
     strip.show();
   }
 }
 
-
 void saveColors() {
-  // Save the colors to EEPROM
-//  if (capsLEDOn) {
-    for (int i = 0; i < colorSize; i++) {
-      EEPROM.write(eepromAddress + i, capsColor[i]);
-    }
- // }
-//  if (numLEDOn) {
-    for (int i = 0; i < colorSize; i++) {
-      EEPROM.write(eepromAddress + colorSize + i, numColor[i]);
-    }
-//  }
-//  if (scrollLEDOn) {
-    for (int i = 0; i < colorSize; i++) {
-      EEPROM.write(eepromAddress + 2 * colorSize + i, scrollColor[i]);
-    }
-//  }
-  EEPROM.commit();
+  // Write colors to EEPROM only if changed
+  static byte lastCapsColor[colorSize], lastNumColor[colorSize], lastScrollColor[colorSize];
+  bool changed = false;
 
-  Serial.println("Colors saved to EEPROM");
+  for (int i = 0; i < colorSize; i++) {
+    if (lastCapsColor[i] != capsColor[i]) {
+      EEPROM.write(eepromAddress + i, capsColor[i]);
+      lastCapsColor[i] = capsColor[i];
+      changed = true;
+    }
+    if (lastNumColor[i] != numColor[i]) {
+      EEPROM.write(eepromAddress + colorSize + i, numColor[i]);
+      lastNumColor[i] = numColor[i];
+      changed = true;
+    }
+    if (lastScrollColor[i] != scrollColor[i]) {
+      EEPROM.write(eepromAddress + 2 * colorSize + i, scrollColor[i]);
+      lastScrollColor[i] = scrollColor[i];
+      changed = true;
+    }
+  }
+  if (changed) {
+    EEPROM.commit();
+  }
 }
 
 void restoreColors() {
-  // Restore the colors from EEPROM
   for (int i = 0; i < colorSize; i++) {
     capsColor[i] = EEPROM.read(eepromAddress + i);
     numColor[i] = EEPROM.read(eepromAddress + colorSize + i);
     scrollColor[i] = EEPROM.read(eepromAddress + 2 * colorSize + i);
   }
-
-  Serial.println("Colors restored from EEPROM:");
-  printColor("numColor", numColor);
-  printColor("capsColor", capsColor);
-  printColor("scrollColor", scrollColor);
 }
 
-void updateColor(const String& colorCommand, byte* color) {
-  if (colorCommand == "Red") {
-    color[0] = 255;
-    color[1] = 0;
-    color[2] = 0;
-  } else if (colorCommand == "Green") {
-    color[0] = 0;
-    color[1] = 255;
-    color[2] = 0;
-  } else if (colorCommand == "Blue") {
-    color[0] = 0;
-    color[1] = 0;
-    color[2] = 255;
-  } else if (colorCommand == "Purple") {
-    color[0] = 255;
-    color[1] = 0;
-    color[2] = 255;
-  } else if (colorCommand == "White") {
-    color[0] = 255;
-    color[1] = 255;
-    color[2] = 255;
-  } else if (colorCommand == "Yellow") {
-    color[0] = 255;
-    color[1] = 255;
-    color[2] = 0;
-  } else if (colorCommand == "Aqua") {
-    color[0] = 0;
-    color[1] = 255;
-    color[2] = 255;
-  } else if (colorCommand == "Orange") {
-    color[0] = 255;
-    color[1] = 165;
-    color[2] = 0;
-  } else if (colorCommand == "Pink") {
-    color[0] = 255;
-    color[1] = 55;
-    color[2] = 180;
-  } else if (colorCommand == "Magenta") {
-    color[0] = 250;
-    color[1] = 0;
-    color[2] = 165;
-  } else if (colorCommand == "Lime") {
-    color[0] = 154;
-    color[1] = 235;
-    color[2] = 0;
-  } else {
-    Serial.println("Unknown color command: " + colorCommand);
+void updateColor(const char* colorCommand, byte* color) {
+  // Map color commands to RGB values
+  if (strcmp(colorCommand, "Red") == 0) {
+    color[0] = 255; color[1] = 0; color[2] = 0;
+  } else if (strcmp(colorCommand, "Green") == 0) {
+    color[0] = 0; color[1] = 255; color[2] = 0;
+  } else if (strcmp(colorCommand, "Blue") == 0) {
+    color[0] = 0; color[1] = 0; color[2] = 255;
+  } else if (strcmp(colorCommand, "Purple") == 0) {
+    color[0] = 255; color[1] = 0; color[2] = 255;
+  } else if (strcmp(colorCommand, "White") == 0) {
+    color[0] = 255; color[1] = 255; color[2] = 255;
+  } else if (strcmp(colorCommand, "Yellow") == 0) {
+    color[0] = 255; color[1] = 255; color[2] = 0;
+  } else if (strcmp(colorCommand, "Aqua") == 0) {
+    color[0] = 0; color[1] = 255; color[2] = 255;
+  } else if (strcmp(colorCommand, "Orange") == 0) {
+    color[0] = 255; color[1] = 165; color[2] = 0;
+  } else if (strcmp(colorCommand, "Pink") == 0) {
+    color[0] = 255; color[1] = 55; color[2] = 180;
+  } else if (strcmp(colorCommand, "Magenta") == 0) {
+    color[0] = 250; color[1] = 0; color[2] = 165;
+  } else if (strcmp(colorCommand, "Lime") == 0) {
+    color[0] = 154; color[1] = 235; color[2] = 0;
   }
-}
-
-
-void printColor(const String& colorName, const byte* color) {
-  Serial.print(colorName);
-  Serial.print(": R=");
-  Serial.print(color[0]);
-  Serial.print(" G=");
-  Serial.print(color[1]);
-  Serial.print(" B=");
-  Serial.println(color[2]);
-}
-
-void turnOffAllLEDs() {
-  // Turn off all LEDs in the strip
-  for (int i = 0; i < numLEDs; i++) {
-    strip.setPixelColor(i, 0);
-  }
-  strip.show();
-}
-
-void setAllLEDsToColor(int R, int G, int B) {
-  // Set the color on all LEDs in the strip
-  for (int i = 0; i < numLEDs; i++) {
-    strip.setPixelColor(i, strip.Color(R, G, B));
-  }
-  strip.show();
-}
-void setLEDColor(int ledIndex, int R, int G, int B) {
-  strip.setPixelColor(ledIndex, strip.Color(R, G, B));
-  strip.show();
 }
